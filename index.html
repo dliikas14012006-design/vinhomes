@@ -658,6 +658,9 @@
                 <div class="role-tag" id="role-tag">Toàn quyền</div>
             </div>
         </div>
+        <button class="btn-logout admin-only" onclick="resetToDefault()" style="border-color:rgba(243,156,18,0.4);color:#F39C12;margin-bottom:6px;">
+            <i class="fas fa-undo"></i> Reset dữ liệu gốc
+        </button>
         <button class="btn-logout" onclick="doLogout()">
             <i class="fas fa-sign-out-alt"></i> Đăng xuất
         </button>
@@ -895,10 +898,8 @@
             <div class="filter-bar">
                 <input class="filter-input" id="f-nv-text" placeholder="Mã NV / Họ tên..." style="width:200px">
                 <select class="filter-select" id="f-nv-cv">
-                    <option value="">-- Chức vụ --</option>
-                    <option>Trưởng phòng</option>
-                    <option>Nhân viên kinh doanh</option>
-                </select>
+    <option value="">-- Tất cả chức vụ --</option>
+</select>
                 <button class="btn-add" style="padding:8px 16px" onclick="filterTable('tbl-nhanvien')"><i class="fas fa-search"></i> Tìm</button>
                 <button class="modal-btn cancel" style="padding:8px 14px" onclick="resetFilter('tbl-nhanvien')">Xóa lọc</button>
             </div>
@@ -1213,92 +1214,24 @@
     <span id="toast-msg"></span>
 </div>
 
+<script src="data.js"></script>
 <script>
-// ============================================================
-//  DỮ LIỆU GỐC & LOCAL STORAGE (ĐÃ CẬP NHẬT TÍNH NĂNG LƯU TRỮ)
-// ============================================================
-const DEFAULT_DB = {
-    canho: [
-        { ma:'CH001', loai:'Studio',       dt:42.50,  dc:'Tầng 6, S1.01 - Ocean Park, Gia Lâm',             gia:18500000,  tt:'Đang cho thuê' },
-        { ma:'CH002', loai:'2 phòng ngủ',  dt:75.00,  dc:'Tầng 38, S2.03 - Ocean Park, Gia Lâm',            gia:32500000,  tt:'Trống' },
-        { ma:'CH003', loai:'3 phòng ngủ',  dt:105.50, dc:'Tầng 40, S3.05 - Ocean Park, Gia Lâm',            gia:48000000,  tt:'Đang cho thuê' },
-        { ma:'CH004', loai:'Studio',       dt:48.00,  dc:'Tầng 6, Grand Park - Smart City, Nam Từ Liêm',     gia:22500000,  tt:'Trống' },
-        { ma:'CH005', loai:'2 phòng ngủ',  dt:82.30,  dc:'Tầng 34, Sapphire 2 - Smart City, Nam Từ Liêm',   gia:35000000,  tt:'Đang cho thuê' },
-        { ma:'CH006', loai:'3 phòng ngủ',  dt:110.00, dc:'Tầng 72, The Tonkin - Smart City, Nam Từ Liêm',   gia:52000000,  tt:'Đang cho thuê' },
-        { ma:'CH007', loai:'Studio',       dt:38.50,  dc:'Tầng 20, West Point - Nam Từ Liêm',                gia:19800000,  tt:'Trống' },
-        { ma:'CH008', loai:'2 phòng ngủ',  dt:78.00,  dc:'Tầng 23, Lumi Hanoi - Smart City',                gia:34000000,  tt:'Đang cho thuê' },
-        { ma:'CH009', loai:'3 phòng ngủ',  dt:98.50,  dc:'Tầng 28, Melody Residence - Hoàng Mai',           gia:42000000,  tt:'Trống' },
-        { ma:'CH010', loai:'Studio',       dt:45.00,  dc:'Tầng 36, MIPEC Rubik 360 - Hà Đông',              gia:21000000,  tt:'Đang cho thuê' },
-        { ma:'CH011', loai:'2 phòng ngủ',  dt:70.50,  dc:'Tầng 35, The Matrix Premium - Mễ Trì',            gia:29500000,  tt:'Đang cho thuê' },
-        { ma:'CH012', loai:'3 phòng ngủ',  dt:120.00, dc:'Tầng 27, Hinode Royal Park - Hoài Đức',           gia:55000000,  tt:'Trống' },
-        { ma:'CH013', loai:'Studio',       dt:52.00,  dc:'Tầng 8, Ocean Park 2 - Gia Lâm',                  gia:23000000,  tt:'Trống' },
-        { ma:'CH014', loai:'2 phòng ngủ',  dt:85.00,  dc:'Tầng 10, Smart City Central - Nam Từ Liêm',       gia:36500000,  tt:'Đang cho thuê' },
-        { ma:'CH015', loai:'3 phòng ngủ',  dt:115.50, dc:'Tầng 68, West Point - Nam Từ Liêm',               gia:49000000,  tt:'Đang cho thuê' },
-    ],
-    khachhang: [
-        { ma:'KH001', ten:'Nguyễn Thị Lan Anh',   gt:'Nữ',  sdt:'0987654321', dc:'12 Ngõ 45 Trần Cung, Bắc Từ Liêm, Hà Nội' },
-        { ma:'KH002', ten:'Trần Minh Quân',        gt:'Nam', sdt:'0912345678', dc:'Phòng 1508, CT1 Mỹ Đình, Nam Từ Liêm' },
-        { ma:'KH003', ten:'Lê Thị Thu Hà',         gt:'Nữ',  sdt:'0978123456', dc:'25 Nguyễn Khang, Cầu Giấy, Hà Nội' },
-        { ma:'KH004', ten:'Phạm Hoàng Nam',        gt:'Nam', sdt:'0933456789', dc:'78 Hoàng Quốc Việt, Cầu Giấy' },
-        { ma:'KH005', ten:'Vũ Thị Ngọc Mai',       gt:'Nữ',  sdt:'0909876543', dc:'112 Xuân Thủy, Cầu Giấy, Hà Nội' },
-        { ma:'KH006', ten:'Đặng Văn Hùng',         gt:'Nam', sdt:'0965123789', dc:'Tòa CT2, Vinhomes Ocean Park, Gia Lâm' },
-        { ma:'KH007', ten:'Hoàng Thị Phương Linh', gt:'Nữ',  sdt:'0945678901', dc:'45 Lê Văn Lương, Thanh Xuân' },
-        { ma:'KH008', ten:'Nguyễn Anh Tuấn',       gt:'Nam', sdt:'0987123456', dc:'67 Phạm Hùng, Nam Từ Liêm' },
-        { ma:'KH009', ten:'Trần Thị Kim Oanh',     gt:'Nữ',  sdt:'0918765432', dc:'89 Giải Phóng, Hoàng Mai' },
-        { ma:'KH010', ten:'Lê Quang Huy',          gt:'Nam', sdt:'0932987654', dc:'34 Đại lộ Thăng Long, Nam Từ Liêm' },
-    ],
-    nhanvien: [
-            {ma:'NV001', ten:'Vũ Thị Ngọc Mai', gt:'Nữ', sdt:'0901234567', cv:'Nhân viên kinh doanh'},
-            {ma:'NV002', ten:'Lê Văn Hải', gt:'Nam', sdt:'0918765432', cv:'Quản lý cho thuê'},
-            {ma:'NV003', ten:'Hoàng Thị Phương', gt:'Nữ', sdt:'0987654320', cv:'Nhân viên tư vấn'},
-            {ma:'NV004', ten:'Phạm Minh Đức', gt:'Nam', sdt:'0934567890', cv:'Nhân viên hỗ trợ'},
-            {ma:'NV005', ten:'Nguyễn Thị Hương', gt:'Nữ', sdt:'0978123450', cv:'Chuyên viên hợp đồng'},
-            {ma:'NV006', ten:'Trần Quang Vinh', gt:'Nam', sdt:'0909876540', cv:'Quản lý khu vực'}
 
-    ],
-    hopdong: [
-        { ma:'HD001', makh:'KH001', manv:'NV001', ngayky:'2026-01-15', tt:'Đã ký' },
-        { ma:'HD002', makh:'KH002', manv:'NV002', ngayky:'2025-09-20', tt:'Đã hết thời hạn' },
-        { ma:'HD003', makh:'KH003', manv:'NV001', ngayky:'2026-03-10', tt:'Đã ký' },
-        { ma:'HD004', makh:'KH004', manv:'NV003', ngayky:'2026-03-25', tt:'Đã huỷ' },
-        { ma:'HD005', makh:'KH005', manv:'NV002', ngayky:'2026-04-05', tt:'Đã huỷ' },
-        { ma:'HD006', makh:'KH002', manv:'NV004', ngayky:'2026-03-12', tt:'Đã ký' },
-        { ma:'HD007', makh:'KH001', manv:'NV005', ngayky:'2026-10-06', tt:'Đã ký' },
-        { ma:'HD008', makh:'KH008', manv:'NV005', ngayky:'2026-10-20', tt:'Đã ký' },
-    ],
-    chitiet: [
-        { mahd:'HD001', mach:'CH001', ngaybd:'2026-05-01', ngaykt:'2026-10-30', gia:62000000,  tt:'Đã bàn giao' },
-        { mahd:'HD001', mach:'CH005', ngaybd:'2026-05-05', ngaykt:'2027-05-05', gia:268000000, tt:'Chờ bàn giao' },
-        { mahd:'HD002', mach:'CH002', ngaybd:'2025-10-06', ngaykt:'2026-04-05', gia:13000000,  tt:'Đã hết thời hạn hợp đồng' },
-        { mahd:'HD002', mach:'CH006', ngaybd:'2026-02-10', ngaykt:'2026-05-09', gia:192000000, tt:'Đã bàn giao' },
-        { mahd:'HD003', mach:'CH008', ngaybd:'2027-03-16', ngaykt:'2027-09-15', gia:125000000, tt:'Đã bàn giao' },
-        { mahd:'HD003', mach:'CH010', ngaybd:'2026-09-04', ngaykt:'2027-03-03', gia:65000000,  tt:'Đã bàn giao' },
-        { mahd:'HD003', mach:'CH005', ngaybd:'2026-06-10', ngaykt:'2027-11-09', gia:140500000, tt:'Đã huỷ' },
-        { mahd:'HD004', mach:'CH001', ngaybd:'2026-12-12', ngaykt:'2027-12-11', gia:140000000, tt:'Đã bàn giao' },
-        { mahd:'HD004', mach:'CH014', ngaybd:'2026-06-01', ngaykt:'2026-11-30', gia:148000000, tt:'Đã bàn giao' },
-        { mahd:'HD005', mach:'CH015', ngaybd:'2026-08-18', ngaykt:'2026-11-18', gia:116000000, tt:'Chờ bàn giao' },
-        { mahd:'HD006', mach:'CH003', ngaybd:'2027-03-16', ngaykt:'2027-09-15', gia:150000000, tt:'Đã bàn giao' },
-        { mahd:'HD006', mach:'CH004', ngaybd:'2026-05-01', ngaykt:'2026-10-30', gia:130000000, tt:'Đã huỷ' },
-        { mahd:'HD007', mach:'CH011', ngaybd:'2026-11-06', ngaykt:'2027-05-05', gia:120500000, tt:'Đã bàn giao' },
-        { mahd:'HD008', mach:'CH015', ngaybd:'2026-11-22', ngaykt:'2027-11-21', gia:450000000, tt:'Đã bàn giao' },
-    ]
-};
 
-// Khởi tạo DB: Lấy từ LocalStorage, nếu chưa có thì dùng bộ mặc định
-let DB = JSON.parse(localStorage.getItem('vinhomes_data'));
-if (!DB) {
-    DB = DEFAULT_DB;
-    localStorage.setItem('vinhomes_data', JSON.stringify(DB));
+function resetToDefault() {
+    if (!confirm('Reset toàn bộ về dữ liệu gốc từ file data.js?')) return;
+    localStorage.removeItem('vinhomes_data');
+    DB = JSON.parse(JSON.stringify(VINHOMES_DATA));
+    syncDB();
+    showToast('Đã reset dữ liệu về mặc định!');
+    goPage('dashboard');
 }
-
-// Hàm đồng bộ dữ liệu vào LocalStorage (Được gọi mỗi khi Thêm/Sửa/Xóa)
 function syncDB() {
     localStorage.setItem('vinhomes_data', JSON.stringify(DB));
 }
+}
 
-// ============================================================
 //  AUTH & ROLE
-// ============================================================
 let currentRole = 'nhanvien';
 
 function initAuth() {
@@ -1336,9 +1269,6 @@ function doLogout() {
     window.location.href = 'login.html';
 }
 
-// ============================================================
-//  PAGE NAVIGATION
-// ============================================================
 function goPage(id) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -1361,13 +1291,12 @@ function goPage(id) {
     if (id === 'khachhang') renderKhachHang();
     if (id === 'hopdong') renderHopDong();
     if (id === 'chitiet') renderChiTiet();
-    if (id === 'nhanvien') renderNhanVien();
+    if (id === 'nhanvien') {
+    renderNhanVien();
+    populateChucVuFilter(); 
+}
     if (id === 'baocao') renderBaoCao();
 }
-
-// ============================================================
-//  FORMATTERS
-// ============================================================
 const fmt = n => n ? Number(n).toLocaleString('vi-VN') : '0';
 const fmtDate = d => d ? d.split('-').reverse().join('/') : '—';
 function statusBadge(tt) {
@@ -1471,26 +1400,61 @@ function renderChiTiet(data) {
 }
 function renderNhanVien(data) {
     if (currentRole !== 'admin') {
-        document.getElementById('nhanvien-content').innerHTML = `<div class="no-access"><i class="fas fa-lock"></i><h3>Truy cập bị từ chối</h3><p>Bạn không có quyền xem thông tin nhân viên. Vui lòng liên hệ quản trị viên.</p></div>`;
+        document.getElementById('nhanvien-content').innerHTML = `
+            <div class="no-access">
+                <i class="fas fa-lock"></i>
+                <h3>Truy cập bị từ chối</h3>
+                <p>Chức năng này chỉ dành cho Quản trị viên.</p>
+            </div>`;
         return;
     }
+
     data = data || DB.nhanvien;
     let html = '';
+
     data.forEach(r => {
-        html += `<tr>
-            <td><b style="color:var(--gold)">${r.ma}</b></td>
-            <td>${r.ten}</td>
-            <td>${r.gt}</td>
-            <td>${r.cv}</td>
-            <td>${r.sdt}</td>
-            <td style="white-space:nowrap">
-                <button class="btn btn-edit" onclick="editNhanVien(${DB.nhanvien.indexOf(r)})"><i class="fas fa-edit"></i> Sửa</button>
-                <button class="btn btn-del" onclick="confirmDel('nhanvien',${DB.nhanvien.indexOf(r)})"><i class="fas fa-trash"></i> Xoá</button>
-            </td>
-        </tr>`;
+        html += `
+            <tr>
+                <td><b style="color:var(--gold)">${r.ma}</b></td>
+                <td>${r.ten}</td>
+                <td>${r.gt}</td>
+                <td>${r.cv}</td>
+                <td>${r.sdt}</td>
+                <td style="white-space:nowrap">
+                    <button class="btn btn-edit" onclick="editNhanVien(${DB.nhanvien.indexOf(r)})">
+                        <i class="fas fa-edit"></i> Sửa
+                    </button>
+                    <button class="btn btn-del" onclick="confirmDel('nhanvien',${DB.nhanvien.indexOf(r)})">
+                        <i class="fas fa-trash"></i> Xoá
+                    </button>
+                </td>
+            </tr>`;
     });
+
     document.getElementById('tbody-nhanvien').innerHTML = html || emptyRow(6);
     document.getElementById('info-nhanvien').textContent = `Hiển thị ${data.length} / ${DB.nhanvien.length} nhân viên`;
+}
+// Tạo danh sách chức vụ động từ dữ liệu thực tế
+function populateChucVuFilter() {
+    const select = document.getElementById('f-nv-cv');
+    if (!select) return;
+
+    // Xóa các option cũ trừ option đầu tiên
+    select.innerHTML = '<option value="">-- Tất cả chức vụ --</option>';
+
+    // Lấy tất cả chức vụ unique
+    const chucVuSet = new Set();
+    DB.nhanvien.forEach(nv => {
+        if (nv.cv) chucVuSet.add(nv.cv);
+    });
+
+    // Sắp xếp và thêm vào select
+    Array.from(chucVuSet).sort().forEach(cv => {
+        const option = document.createElement('option');
+        option.value = cv;
+        option.textContent = cv;
+        select.appendChild(option);
+    });
 }
 function renderBaoCao() {
     if (currentRole !== 'admin') {
@@ -1907,6 +1871,19 @@ document.addEventListener('DOMContentLoaded', () => {
     initAuth();
     updateStats();
 });
+</script>
+<script>
+// Lấy dữ liệu từ file data.js, nếu đã có chỉnh sửa lưu ở trình duyệt thì ưu tiên lấy cái đó
+let DB = (() => {
+    const saved = localStorage.getItem('vinhomes_data');
+    if (saved) return JSON.parse(saved);
+    return JSON.parse(JSON.stringify(VINHOMES_DATA)); // Lấy từ data.js
+})();
+
+// Hàm đồng bộ dữ liệu vào bộ nhớ trình duyệt
+function syncDB() {
+    localStorage.setItem('vinhomes_data', JSON.stringify(DB));
+}
 </script>
 </body>
 </html>
