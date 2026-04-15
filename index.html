@@ -1216,32 +1216,43 @@
 
 <script src="data.js"></script>
 <script>
+// ============================================================
+// 1. KHỞI TẠO DỮ LIỆU ĐẦU TIÊN (CHỐNG LỖI ĐÓNG BĂNG TRANG)
+// ============================================================
+let DB = { canho:[], khachhang:[], hopdong:[], chitiet:[], nhanvien:[] };
+try {
+    const saved = localStorage.getItem('vinhomes_data');
+    if (saved) {
+        DB = JSON.parse(saved);
+    } else if (typeof VINHOMES_DATA !== 'undefined') {
+        DB = JSON.parse(JSON.stringify(VINHOMES_DATA));
+    } else {
+        console.warn("Chưa tải được file data.js, hệ thống dùng dữ liệu trống.");
+    }
+} catch(e) { console.error("Lỗi dữ liệu:", e); }
 
-
-function resetToDefault() {
-    if (!confirm('Reset toàn bộ về dữ liệu gốc từ file data.js?')) return;
-    localStorage.removeItem('vinhomes_data');
-    DB = JSON.parse(JSON.stringify(VINHOMES_DATA));
-    syncDB();
-    showToast('Đã reset dữ liệu về mặc định!');
-    goPage('dashboard');
-}
 function syncDB() {
     localStorage.setItem('vinhomes_data', JSON.stringify(DB));
 }
+
+function resetToDefault() {
+    if (!confirm('Reset toàn bộ về dữ liệu gốc?')) return;
+    localStorage.removeItem('vinhomes_data');
+    if (typeof VINHOMES_DATA !== 'undefined') {
+        DB = JSON.parse(JSON.stringify(VINHOMES_DATA));
+    }
+    syncDB();
+    showToast('Đã reset dữ liệu về mặc định!');
+    setTimeout(() => window.location.reload(), 1000);
 }
 
-//  AUTH & ROLE
+// ============================================================
+// 2. BỘ XỬ LÝ PHÂN QUYỀN
+// ============================================================
 let currentRole = 'nhanvien';
 
 function initAuth() {
-    let role = '';
-    try { role = sessionStorage.getItem('vhRole') || ''; } catch(e){}
-    if (!role) {
-        // Try URL param fallback
-        const p = new URLSearchParams(window.location.search);
-        role = p.get('role') || '';
-    }
+    const role = localStorage.getItem('vhRole');
     if (!role) {
         window.location.href = 'login.html';
         return;
@@ -1256,19 +1267,25 @@ function initAuth() {
         document.getElementById('role-name').textContent = 'Nhân viên KD';
         document.getElementById('role-tag').textContent = 'Hạn chế';
         document.getElementById('role-avatar').textContent = 'N';
-        // Hide admin-only items
-        document.getElementById('nav-nhanvien').style.display = 'none';
-        document.getElementById('nav-baocao').style.display = 'none';
-        document.getElementById('label-admin').style.display = 'none';
+        
+        const navNhanVien = document.getElementById('nav-nhanvien');
+        const navBaoCao = document.getElementById('nav-baocao');
+        const labelAdmin = document.getElementById('label-admin');
+        if(navNhanVien) navNhanVien.style.display = 'none';
+        if(navBaoCao) navBaoCao.style.display = 'none';
+        if(labelAdmin) labelAdmin.style.display = 'none';
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
     }
 }
 
 function doLogout() {
-    try { sessionStorage.clear(); } catch(e){}
+    localStorage.removeItem('vhRole');
     window.location.href = 'login.html';
 }
 
+// ============================================================
+// 3. LOGIC ĐIỀU HƯỚNG VÀ HIỂN THỊ CŨ (Đã giữ nguyên)
+// ============================================================
 function goPage(id) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -1276,217 +1293,88 @@ function goPage(id) {
     const nav = document.getElementById('nav-' + id);
     if (nav) nav.classList.add('active');
     
-    const titles = {
-        dashboard: 'Bảng điều khiển',
-        canho: 'Quản lý Căn hộ',
-        khachhang: 'Quản lý Khách hàng',
-        hopdong: 'Quản lý Hợp đồng',
-        chitiet: 'Chi tiết Hợp đồng',
-        nhanvien: 'Quản lý Nhân viên',
-        baocao: 'Báo cáo & Thống kê'
-    };
+    const titles = { dashboard: 'Bảng điều khiển', canho: 'Quản lý Căn hộ', khachhang: 'Quản lý Khách hàng', hopdong: 'Quản lý Hợp đồng', chitiet: 'Chi tiết Hợp đồng', nhanvien: 'Quản lý Nhân viên', baocao: 'Báo cáo & Thống kê' };
     document.getElementById('topbar-title').textContent = titles[id] || id;
 
     if (id === 'canho') renderCanHo();
     if (id === 'khachhang') renderKhachHang();
     if (id === 'hopdong') renderHopDong();
     if (id === 'chitiet') renderChiTiet();
-    if (id === 'nhanvien') {
-    renderNhanVien();
-    populateChucVuFilter(); 
-}
+    if (id === 'nhanvien') { renderNhanVien(); populateChucVuFilter(); }
     if (id === 'baocao') renderBaoCao();
 }
 const fmt = n => n ? Number(n).toLocaleString('vi-VN') : '0';
 const fmtDate = d => d ? d.split('-').reverse().join('/') : '—';
 function statusBadge(tt) {
-    const map = {
-        'Đang cho thuê': 'badge-success',
-        'Trống': 'badge-info',
-        'Đã ký': 'badge-success',
-        'Đã huỷ': 'badge-danger',
-        'Đã hết thời hạn': 'badge-muted',
-        'Đã bàn giao': 'badge-success',
-        'Chờ bàn giao': 'badge-warning',
-        'Đã hết thời hạn hợp đồng': 'badge-muted',
-    };
+    const map = { 'Đang cho thuê': 'badge-success', 'Trống': 'badge-info', 'Đã ký': 'badge-success', 'Đã huỷ': 'badge-danger', 'Đã hết thời hạn': 'badge-muted', 'Đã bàn giao': 'badge-success', 'Chờ bàn giao': 'badge-warning', 'Đã hết thời hạn hợp đồng': 'badge-muted' };
     return `<span class="badge ${map[tt]||'badge-muted'}">${tt}</span>`;
 }
 
-// ============================================================
-//  RENDER TABLES
-// ============================================================
 function renderCanHo(data) {
-    data = data || DB.canho;
-    let html = '';
+    data = data || DB.canho; let html = '';
     data.forEach((r, i) => {
         const canDel = currentRole === 'admin';
-        html += `<tr>
-            <td><b style="color:var(--gold)">${r.ma}</b></td>
-            <td>${r.loai}</td>
-            <td>${r.dt}</td>
-            <td style="max-width:220px;font-size:12px">${r.dc}</td>
-            <td><b>${fmt(r.gia)}</b></td>
-            <td>${statusBadge(r.tt)}</td>
-            <td style="white-space:nowrap">
-                <button class="btn btn-edit" onclick="editCanHo(${DB.canho.indexOf(r)})"><i class="fas fa-edit"></i> Sửa</button>
-                ${canDel ? `<button class="btn btn-del" onclick="confirmDel('canho',${DB.canho.indexOf(r)})"><i class="fas fa-trash"></i> Xoá</button>` : ''}
-            </td>
-        </tr>`;
+        html += `<tr><td><b style="color:var(--gold)">${r.ma}</b></td><td>${r.loai}</td><td>${r.dt}</td><td style="max-width:220px;font-size:12px">${r.dc}</td><td><b>${fmt(r.gia)}</b></td><td>${statusBadge(r.tt)}</td><td style="white-space:nowrap"><button class="btn btn-edit" onclick="editCanHo(${DB.canho.indexOf(r)})"><i class="fas fa-edit"></i> Sửa</button>${canDel ? `<button class="btn btn-del" onclick="confirmDel('canho',${DB.canho.indexOf(r)})"><i class="fas fa-trash"></i> Xoá</button>` : ''}</td></tr>`;
     });
     document.getElementById('tbody-canho').innerHTML = html || emptyRow(7);
     document.getElementById('info-canho').textContent = `Hiển thị ${data.length} / ${DB.canho.length} căn hộ`;
 }
 function renderKhachHang(data) {
-    data = data || DB.khachhang;
-    let html = '';
+    data = data || DB.khachhang; let html = '';
     data.forEach(r => {
         const canDel = currentRole === 'admin';
-        html += `<tr>
-            <td><b style="color:var(--gold)">${r.ma}</b></td>
-            <td>${r.ten}</td>
-            <td>${r.gt}</td>
-            <td>${r.sdt}</td>
-            <td style="font-size:12px">${r.dc}</td>
-            <td style="white-space:nowrap">
-                <button class="btn btn-edit" onclick="editKhachHang(${DB.khachhang.indexOf(r)})"><i class="fas fa-edit"></i> Sửa</button>
-                ${canDel ? `<button class="btn btn-del" onclick="confirmDel('khachhang',${DB.khachhang.indexOf(r)})"><i class="fas fa-trash"></i> Xoá</button>` : ''}
-            </td>
-        </tr>`;
+        html += `<tr><td><b style="color:var(--gold)">${r.ma}</b></td><td>${r.ten}</td><td>${r.gt}</td><td>${r.sdt}</td><td style="font-size:12px">${r.dc}</td><td style="white-space:nowrap"><button class="btn btn-edit" onclick="editKhachHang(${DB.khachhang.indexOf(r)})"><i class="fas fa-edit"></i> Sửa</button>${canDel ? `<button class="btn btn-del" onclick="confirmDel('khachhang',${DB.khachhang.indexOf(r)})"><i class="fas fa-trash"></i> Xoá</button>` : ''}</td></tr>`;
     });
     document.getElementById('tbody-khachhang').innerHTML = html || emptyRow(6);
     document.getElementById('info-khachhang').textContent = `Hiển thị ${data.length} / ${DB.khachhang.length} khách hàng`;
 }
 function renderHopDong(data) {
-    data = data || DB.hopdong;
-    let html = '';
+    data = data || DB.hopdong; let html = '';
     data.forEach(r => {
         const canDel = currentRole === 'admin';
-        html += `<tr>
-            <td><b style="color:var(--gold)">${r.ma}</b></td>
-            <td>${r.makh}</td>
-            <td>${r.manv}</td>
-            <td>${fmtDate(r.ngayky)}</td>
-            <td>${statusBadge(r.tt)}</td>
-            <td style="white-space:nowrap">
-                <button class="btn btn-edit" onclick="editHopDong(${DB.hopdong.indexOf(r)})"><i class="fas fa-edit"></i> Sửa</button>
-                ${canDel ? `<button class="btn btn-del" onclick="confirmDel('hopdong',${DB.hopdong.indexOf(r)})"><i class="fas fa-trash"></i> Xoá</button>` : ''}
-            </td>
-        </tr>`;
+        html += `<tr><td><b style="color:var(--gold)">${r.ma}</b></td><td>${r.makh}</td><td>${r.manv}</td><td>${fmtDate(r.ngayky)}</td><td>${statusBadge(r.tt)}</td><td style="white-space:nowrap"><button class="btn btn-edit" onclick="editHopDong(${DB.hopdong.indexOf(r)})"><i class="fas fa-edit"></i> Sửa</button>${canDel ? `<button class="btn btn-del" onclick="confirmDel('hopdong',${DB.hopdong.indexOf(r)})"><i class="fas fa-trash"></i> Xoá</button>` : ''}</td></tr>`;
     });
     document.getElementById('tbody-hopdong').innerHTML = html || emptyRow(6);
     document.getElementById('info-hopdong').textContent = `Hiển thị ${data.length} / ${DB.hopdong.length} hợp đồng`;
 }
 function renderChiTiet(data) {
-    data = data || DB.chitiet;
-    let html = '';
+    data = data || DB.chitiet; let html = '';
     data.forEach(r => {
         const idx = DB.chitiet.indexOf(r);
-        html += `<tr>
-            <td><b style="color:var(--gold)">${r.mahd}</b></td>
-            <td>${r.mach}</td>
-            <td>${fmtDate(r.ngaybd)}</td>
-            <td>${fmtDate(r.ngaykt)}</td>
-            <td><b>${fmt(r.gia)}</b></td>
-            <td>${statusBadge(r.tt)}</td>
-            <td style="white-space:nowrap">
-                <button class="btn btn-edit" onclick="editChiTiet(${idx})"><i class="fas fa-edit"></i> Sửa</button>
-                <button class="btn btn-del" onclick="confirmDel('chitiet',${idx})"><i class="fas fa-trash"></i> Xoá</button>
-            </td>
-        </tr>`;
+        html += `<tr><td><b style="color:var(--gold)">${r.mahd}</b></td><td>${r.mach}</td><td>${fmtDate(r.ngaybd)}</td><td>${fmtDate(r.ngaykt)}</td><td><b>${fmt(r.gia)}</b></td><td>${statusBadge(r.tt)}</td><td style="white-space:nowrap"><button class="btn btn-edit" onclick="editChiTiet(${idx})"><i class="fas fa-edit"></i> Sửa</button><button class="btn btn-del" onclick="confirmDel('chitiet',${idx})"><i class="fas fa-trash"></i> Xoá</button></td></tr>`;
     });
     document.getElementById('tbody-chitiet').innerHTML = html || emptyRow(7);
     document.getElementById('info-chitiet').textContent = `Hiển thị ${data.length} / ${DB.chitiet.length} bản ghi`;
 }
 function renderNhanVien(data) {
-    if (currentRole !== 'admin') {
-        document.getElementById('nhanvien-content').innerHTML = `
-            <div class="no-access">
-                <i class="fas fa-lock"></i>
-                <h3>Truy cập bị từ chối</h3>
-                <p>Chức năng này chỉ dành cho Quản trị viên.</p>
-            </div>`;
-        return;
-    }
-
-    data = data || DB.nhanvien;
-    let html = '';
-
+    if (currentRole !== 'admin') { document.getElementById('nhanvien-content').innerHTML = `<div class="no-access"><i class="fas fa-lock"></i><h3>Truy cập bị từ chối</h3></div>`; return; }
+    data = data || DB.nhanvien; let html = '';
     data.forEach(r => {
-        html += `
-            <tr>
-                <td><b style="color:var(--gold)">${r.ma}</b></td>
-                <td>${r.ten}</td>
-                <td>${r.gt}</td>
-                <td>${r.cv}</td>
-                <td>${r.sdt}</td>
-                <td style="white-space:nowrap">
-                    <button class="btn btn-edit" onclick="editNhanVien(${DB.nhanvien.indexOf(r)})">
-                        <i class="fas fa-edit"></i> Sửa
-                    </button>
-                    <button class="btn btn-del" onclick="confirmDel('nhanvien',${DB.nhanvien.indexOf(r)})">
-                        <i class="fas fa-trash"></i> Xoá
-                    </button>
-                </td>
-            </tr>`;
+        html += `<tr><td><b style="color:var(--gold)">${r.ma}</b></td><td>${r.ten}</td><td>${r.gt}</td><td>${r.cv}</td><td>${r.sdt}</td><td style="white-space:nowrap"><button class="btn btn-edit" onclick="editNhanVien(${DB.nhanvien.indexOf(r)})"><i class="fas fa-edit"></i> Sửa</button><button class="btn btn-del" onclick="confirmDel('nhanvien',${DB.nhanvien.indexOf(r)})"><i class="fas fa-trash"></i> Xoá</button></td></tr>`;
     });
-
     document.getElementById('tbody-nhanvien').innerHTML = html || emptyRow(6);
     document.getElementById('info-nhanvien').textContent = `Hiển thị ${data.length} / ${DB.nhanvien.length} nhân viên`;
 }
-// Tạo danh sách chức vụ động từ dữ liệu thực tế
 function populateChucVuFilter() {
-    const select = document.getElementById('f-nv-cv');
-    if (!select) return;
-
-    // Xóa các option cũ trừ option đầu tiên
+    const select = document.getElementById('f-nv-cv'); if (!select) return;
     select.innerHTML = '<option value="">-- Tất cả chức vụ --</option>';
-
-    // Lấy tất cả chức vụ unique
     const chucVuSet = new Set();
-    DB.nhanvien.forEach(nv => {
-        if (nv.cv) chucVuSet.add(nv.cv);
-    });
-
-    // Sắp xếp và thêm vào select
-    Array.from(chucVuSet).sort().forEach(cv => {
-        const option = document.createElement('option');
-        option.value = cv;
-        option.textContent = cv;
-        select.appendChild(option);
-    });
+    DB.nhanvien.forEach(nv => { if (nv.cv) chucVuSet.add(nv.cv); });
+    Array.from(chucVuSet).sort().forEach(cv => { select.appendChild(new Option(cv, cv)); });
 }
 function renderBaoCao() {
-    if (currentRole !== 'admin') {
-        document.getElementById('baocao-content').innerHTML = `<div class="no-access"><i class="fas fa-lock"></i><h3>Truy cập bị từ chối</h3><p>Chức năng này chỉ dành cho Quản trị viên.</p></div>`;
-        return;
-    }
-    const trong = DB.canho.filter(c=>c.tt==='Trống').length;
-    const dangThue = DB.canho.length - trong;
-    const daKy = DB.hopdong.filter(h=>h.tt==='Đã ký').length;
-    const daHuy = DB.hopdong.filter(h=>h.tt==='Đã huỷ').length;
-    const hetHan = DB.hopdong.filter(h=>h.tt==='Đã hết thời hạn').length;
-
-    document.getElementById('bc-dangthue').textContent = dangThue;
-    document.getElementById('bc-trong').textContent = trong;
-    document.getElementById('bc-daky').textContent = daKy;
-    document.getElementById('bc-huy').textContent = daHuy;
-    document.getElementById('bc-hethan').textContent = hetHan;
-
-    const tongGia = DB.chitiet.reduce((s,c)=>s+c.gia,0);
-    const banGiao = DB.chitiet.filter(c=>c.tt==='Đã bàn giao').length;
-    document.getElementById('bc-tonggia').textContent = fmt(tongGia) + ' VNĐ';
-    document.getElementById('bc-bangiao').textContent = banGiao + ' bản ghi';
-    document.getElementById('bc-tongct').textContent = DB.chitiet.length + ' bản ghi';
-
-    // NV stats
+    if (currentRole !== 'admin') { document.getElementById('baocao-content').innerHTML = `<div class="no-access"><i class="fas fa-lock"></i><h3>Truy cập bị từ chối</h3></div>`; return; }
+    const trong = DB.canho.filter(c=>c.tt==='Trống').length; const dangThue = DB.canho.length - trong;
+    const daKy = DB.hopdong.filter(h=>h.tt==='Đã ký').length; const daHuy = DB.hopdong.filter(h=>h.tt==='Đã huỷ').length; const hetHan = DB.hopdong.filter(h=>h.tt==='Đã hết thời hạn').length;
+    document.getElementById('bc-dangthue').textContent = dangThue; document.getElementById('bc-trong').textContent = trong; document.getElementById('bc-daky').textContent = daKy; document.getElementById('bc-huy').textContent = daHuy; document.getElementById('bc-hethan').textContent = hetHan;
+    const tongGia = DB.chitiet.reduce((s,c)=>s+c.gia,0); const banGiao = DB.chitiet.filter(c=>c.tt==='Đã bàn giao').length;
+    document.getElementById('bc-tonggia').textContent = fmt(tongGia) + ' VNĐ'; document.getElementById('bc-bangiao').textContent = banGiao + ' bản ghi'; document.getElementById('bc-tongct').textContent = DB.chitiet.length + ' bản ghi';
     let nvHtml = '';
     DB.nhanvien.forEach(nv => {
         const hdCount = DB.hopdong.filter(h=>h.manv===nv.ma).length;
         nvHtml += `<tr><td><b style="color:var(--gold)">${nv.ma}</b></td><td>${nv.ten}</td><td>${hdCount}</td><td>${hdCount >= 2 ? '<span class="badge badge-success">Tốt</span>' : '<span class="badge badge-warning">Trung bình</span>'}</td></tr>`;
     });
     document.getElementById('bc-nhanvien').innerHTML = nvHtml;
-
     updateStats();
 }
 function updateStats() {
@@ -1495,340 +1383,124 @@ function updateStats() {
     document.getElementById('s-kh').textContent = DB.khachhang.length;
     document.getElementById('s-nv').textContent = DB.nhanvien.length;
 }
-function emptyRow(cols) {
-    return `<tr><td colspan="${cols}" style="text-align:center;padding:32px;color:var(--text-muted)"><i class="fas fa-inbox" style="font-size:24px;opacity:0.3;display:block;margin-bottom:8px"></i>Không có dữ liệu</td></tr>`;
-}
+function emptyRow(cols) { return `<tr><td colspan="${cols}" style="text-align:center;padding:32px;color:var(--text-muted)">Không có dữ liệu</td></tr>`; }
 
-// ============================================================
-//  MODAL
-// ============================================================
-function openModal(id) {
-    document.getElementById(id).classList.add('open');
-}
-function closeModal(id) {
-    document.getElementById(id).classList.remove('open');
-}
-document.querySelectorAll('.modal-overlay').forEach(o => {
-    o.addEventListener('click', e => { if(e.target === o) o.classList.remove('open'); });
-});
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(o => { o.addEventListener('click', e => { if(e.target === o) o.classList.remove('open'); }); });
 
-// ============================================================
-//  CRUD - CĂN HỘ
-// ============================================================
 function editCanHo(idx) {
-    const r = DB.canho[idx];
-    document.getElementById('ch-edit-idx').value = idx;
-    document.getElementById('ch-ma').value = r.ma;
-    document.getElementById('ch-loai').value = r.loai;
-    document.getElementById('ch-dt').value = r.dt;
-    document.getElementById('ch-gia').value = r.gia;
-    document.getElementById('ch-dc').value = r.dc;
-    document.getElementById('ch-tt').value = r.tt;
-    document.getElementById('modal-canho-title').textContent = 'Cập nhật Căn hộ ' + r.ma;
-    openModal('modal-canho');
+    const r = DB.canho[idx]; document.getElementById('ch-edit-idx').value = idx; document.getElementById('ch-ma').value = r.ma; document.getElementById('ch-loai').value = r.loai; document.getElementById('ch-dt').value = r.dt; document.getElementById('ch-gia').value = r.gia; document.getElementById('ch-dc').value = r.dc; document.getElementById('ch-tt').value = r.tt; document.getElementById('modal-canho-title').textContent = 'Cập nhật Căn hộ ' + r.ma; openModal('modal-canho');
 }
 function saveCanHo() {
-    const idx = document.getElementById('ch-edit-idx').value;
-    const ma = document.getElementById('ch-ma').value.trim();
-    const dt = document.getElementById('ch-dt').value;
-    const gia = document.getElementById('ch-gia').value;
+    const idx = document.getElementById('ch-edit-idx').value; const ma = document.getElementById('ch-ma').value.trim(); const dt = document.getElementById('ch-dt').value; const gia = document.getElementById('ch-gia').value;
     if (!ma || !dt || !gia) { showToast('Vui lòng điền đầy đủ thông tin bắt buộc!', 'error'); return; }
-    const rec = {
-        ma, loai: document.getElementById('ch-loai').value,
-        dt: parseFloat(dt), dc: document.getElementById('ch-dc').value,
-        gia: parseInt(gia), tt: document.getElementById('ch-tt').value
-    };
-    if (idx !== '') { DB.canho[parseInt(idx)] = rec; showToast('Cập nhật căn hộ ' + ma + ' thành công!'); }
-    else { DB.canho.unshift(rec); showToast('Thêm căn hộ ' + ma + ' thành công!'); }
-    
-    syncDB(); // Lưu vào bộ nhớ
-    closeModal('modal-canho');
-    resetModalForm('modal-canho', 'ch-edit-idx');
-    renderCanHo();
-    updateStats();
+    const rec = { ma, loai: document.getElementById('ch-loai').value, dt: parseFloat(dt), dc: document.getElementById('ch-dc').value, gia: parseInt(gia), tt: document.getElementById('ch-tt').value };
+    if (idx !== '') { DB.canho[parseInt(idx)] = rec; showToast('Cập nhật căn hộ ' + ma + ' thành công!'); } else { DB.canho.unshift(rec); showToast('Thêm căn hộ ' + ma + ' thành công!'); }
+    syncDB(); closeModal('modal-canho'); resetModalForm('modal-canho', 'ch-edit-idx'); renderCanHo(); updateStats();
 }
 
-// ============================================================
-//  CRUD - KHÁCH HÀNG
-// ============================================================
 function editKhachHang(idx) {
-    const r = DB.khachhang[idx];
-    document.getElementById('kh-edit-idx').value = idx;
-    document.getElementById('kh-ma').value = r.ma;
-    document.getElementById('kh-ten').value = r.ten;
-    document.getElementById('kh-gt').value = r.gt;
-    document.getElementById('kh-sdt').value = r.sdt;
-    document.getElementById('kh-dc').value = r.dc;
-    document.getElementById('modal-kh-title').textContent = 'Cập nhật KH ' + r.ma;
-    openModal('modal-kh');
+    const r = DB.khachhang[idx]; document.getElementById('kh-edit-idx').value = idx; document.getElementById('kh-ma').value = r.ma; document.getElementById('kh-ten').value = r.ten; document.getElementById('kh-gt').value = r.gt; document.getElementById('kh-sdt').value = r.sdt; document.getElementById('kh-dc').value = r.dc; document.getElementById('modal-kh-title').textContent = 'Cập nhật KH ' + r.ma; openModal('modal-kh');
 }
 function saveKhachHang() {
-    const idx = document.getElementById('kh-edit-idx').value;
-    const ma = document.getElementById('kh-ma').value.trim();
-    const ten = document.getElementById('kh-ten').value.trim();
-    const sdt = document.getElementById('kh-sdt').value.trim();
+    const idx = document.getElementById('kh-edit-idx').value; const ma = document.getElementById('kh-ma').value.trim(); const ten = document.getElementById('kh-ten').value.trim(); const sdt = document.getElementById('kh-sdt').value.trim();
     if (!ma || !ten || !sdt) { showToast('Vui lòng điền đầy đủ thông tin!', 'error'); return; }
     const rec = { ma, ten, gt: document.getElementById('kh-gt').value, sdt, dc: document.getElementById('kh-dc').value };
-    if (idx !== '') { DB.khachhang[parseInt(idx)] = rec; showToast('Cập nhật KH ' + ten + ' thành công!'); }
-    else { DB.khachhang.unshift(rec); showToast('Thêm KH ' + ten + ' thành công!'); }
-    
-    syncDB(); // Lưu vào bộ nhớ
-    closeModal('modal-kh');
-    resetModalForm('modal-kh', 'kh-edit-idx');
-    renderKhachHang();
-    updateStats();
+    if (idx !== '') { DB.khachhang[parseInt(idx)] = rec; showToast('Cập nhật KH ' + ten + ' thành công!'); } else { DB.khachhang.unshift(rec); showToast('Thêm KH ' + ten + ' thành công!'); }
+    syncDB(); closeModal('modal-kh'); resetModalForm('modal-kh', 'kh-edit-idx'); renderKhachHang(); updateStats();
 }
 
-// ============================================================
-//  CRUD - HỢP ĐỒNG
-// ============================================================
 function editHopDong(idx) {
-    const r = DB.hopdong[idx];
-    document.getElementById('hd-edit-idx').value = idx;
-    document.getElementById('hd-ma').value = r.ma;
-    document.getElementById('hd-ngayky').value = r.ngayky;
-    document.getElementById('hd-makh').value = r.makh;
-    document.getElementById('hd-manv').value = r.manv;
-    document.getElementById('hd-tt').value = r.tt;
-    document.getElementById('modal-hd-title').textContent = 'Cập nhật HĐ ' + r.ma;
-    openModal('modal-hd');
+    const r = DB.hopdong[idx]; document.getElementById('hd-edit-idx').value = idx; document.getElementById('hd-ma').value = r.ma; document.getElementById('hd-ngayky').value = r.ngayky; document.getElementById('hd-makh').value = r.makh; document.getElementById('hd-manv').value = r.manv; document.getElementById('hd-tt').value = r.tt; document.getElementById('modal-hd-title').textContent = 'Cập nhật HĐ ' + r.ma; openModal('modal-hd');
 }
 function saveHopDong() {
-    const idx = document.getElementById('hd-edit-idx').value;
-    const ma = document.getElementById('hd-ma').value.trim();
-    const makh = document.getElementById('hd-makh').value.trim();
+    const idx = document.getElementById('hd-edit-idx').value; const ma = document.getElementById('hd-ma').value.trim(); const makh = document.getElementById('hd-makh').value.trim();
     if (!ma || !makh) { showToast('Vui lòng điền đầy đủ thông tin!', 'error'); return; }
-    const rec = {
-        ma, makh, manv: document.getElementById('hd-manv').value.trim(),
-        ngayky: document.getElementById('hd-ngayky').value,
-        tt: document.getElementById('hd-tt').value
-    };
-    if (idx !== '') { DB.hopdong[parseInt(idx)] = rec; showToast('Cập nhật HĐ ' + ma + ' thành công!'); }
-    else { DB.hopdong.unshift(rec); showToast('Lập hợp đồng ' + ma + ' thành công!'); }
-    
-    syncDB(); // Lưu vào bộ nhớ
-    closeModal('modal-hd');
-    resetModalForm('modal-hd', 'hd-edit-idx');
-    renderHopDong();
-    updateStats();
+    const rec = { ma, makh, manv: document.getElementById('hd-manv').value.trim(), ngayky: document.getElementById('hd-ngayky').value, tt: document.getElementById('hd-tt').value };
+    if (idx !== '') { DB.hopdong[parseInt(idx)] = rec; showToast('Cập nhật HĐ ' + ma + ' thành công!'); } else { DB.hopdong.unshift(rec); showToast('Lập hợp đồng ' + ma + ' thành công!'); }
+    syncDB(); closeModal('modal-hd'); resetModalForm('modal-hd', 'hd-edit-idx'); renderHopDong(); updateStats();
 }
 
-// ============================================================
-//  CRUD - CHI TIẾT
-// ============================================================
 function editChiTiet(idx) {
-    const r = DB.chitiet[idx];
-    document.getElementById('ct-edit-idx').value = idx;
-    document.getElementById('ct-mahd').value = r.mahd;
-    document.getElementById('ct-mach').value = r.mach;
-    document.getElementById('ct-ngaybd').value = r.ngaybd;
-    document.getElementById('ct-ngaykt').value = r.ngaykt;
-    document.getElementById('ct-gia').value = r.gia;
-    document.getElementById('ct-tt').value = r.tt;
-    document.getElementById('modal-ct-title').textContent = 'Cập nhật CT ' + r.mahd + ' / ' + r.mach;
-    openModal('modal-ct');
+    const r = DB.chitiet[idx]; document.getElementById('ct-edit-idx').value = idx; document.getElementById('ct-mahd').value = r.mahd; document.getElementById('ct-mach').value = r.mach; document.getElementById('ct-ngaybd').value = r.ngaybd; document.getElementById('ct-ngaykt').value = r.ngaykt; document.getElementById('ct-gia').value = r.gia; document.getElementById('ct-tt').value = r.tt; document.getElementById('modal-ct-title').textContent = 'Cập nhật CT ' + r.mahd + ' / ' + r.mach; openModal('modal-ct');
 }
 function saveChiTiet() {
-    const idx = document.getElementById('ct-edit-idx').value;
-    const mahd = document.getElementById('ct-mahd').value.trim();
-    const mach = document.getElementById('ct-mach').value.trim();
+    const idx = document.getElementById('ct-edit-idx').value; const mahd = document.getElementById('ct-mahd').value.trim(); const mach = document.getElementById('ct-mach').value.trim();
     if (!mahd || !mach) { showToast('Vui lòng điền đầy đủ!', 'error'); return; }
-    const rec = {
-        mahd, mach,
-        ngaybd: document.getElementById('ct-ngaybd').value,
-        ngaykt: document.getElementById('ct-ngaykt').value,
-        gia: parseInt(document.getElementById('ct-gia').value) || 0,
-        tt: document.getElementById('ct-tt').value
-    };
-    if (idx !== '') { DB.chitiet[parseInt(idx)] = rec; showToast('Cập nhật thành công!'); }
-    else { DB.chitiet.unshift(rec); showToast('Thêm chi tiết HĐ thành công!'); }
-    
-    syncDB(); // Lưu vào bộ nhớ
-    closeModal('modal-ct');
-    resetModalForm('modal-ct', 'ct-edit-idx');
-    renderChiTiet();
+    const rec = { mahd, mach, ngaybd: document.getElementById('ct-ngaybd').value, ngaykt: document.getElementById('ct-ngaykt').value, gia: parseInt(document.getElementById('ct-gia').value) || 0, tt: document.getElementById('ct-tt').value };
+    if (idx !== '') { DB.chitiet[parseInt(idx)] = rec; showToast('Cập nhật thành công!'); } else { DB.chitiet.unshift(rec); showToast('Thêm chi tiết HĐ thành công!'); }
+    syncDB(); closeModal('modal-ct'); resetModalForm('modal-ct', 'ct-edit-idx'); renderChiTiet();
 }
 
-// ============================================================
-//  CRUD - NHÂN VIÊN
-// ============================================================
 function editNhanVien(idx) {
-    const r = DB.nhanvien[idx];
-    document.getElementById('nv-edit-idx').value = idx;
-    document.getElementById('nv-ma').value = r.ma;
-    document.getElementById('nv-ten').value = r.ten;
-    document.getElementById('nv-gt').value = r.gt;
-    document.getElementById('nv-sdt').value = r.sdt;
-    document.getElementById('nv-cv').value = r.cv;
-    document.getElementById('modal-nv-title').textContent = 'Cập nhật NV ' + r.ma;
-    openModal('modal-nv');
+    const r = DB.nhanvien[idx]; document.getElementById('nv-edit-idx').value = idx; document.getElementById('nv-ma').value = r.ma; document.getElementById('nv-ten').value = r.ten; document.getElementById('nv-gt').value = r.gt; document.getElementById('nv-sdt').value = r.sdt; document.getElementById('nv-cv').value = r.cv; document.getElementById('modal-nv-title').textContent = 'Cập nhật NV ' + r.ma; openModal('modal-nv');
 }
 function saveNhanVien() {
-    const idx = document.getElementById('nv-edit-idx').value;
-    const ma = document.getElementById('nv-ma').value.trim();
-    const ten = document.getElementById('nv-ten').value.trim();
-    const sdt = document.getElementById('nv-sdt').value.trim();
+    const idx = document.getElementById('nv-edit-idx').value; const ma = document.getElementById('nv-ma').value.trim(); const ten = document.getElementById('nv-ten').value.trim(); const sdt = document.getElementById('nv-sdt').value.trim();
     if (!ma || !ten || !sdt) { showToast('Vui lòng điền đầy đủ!', 'error'); return; }
     const rec = { ma, ten, gt: document.getElementById('nv-gt').value, sdt, cv: document.getElementById('nv-cv').value };
-    if (idx !== '') { DB.nhanvien[parseInt(idx)] = rec; showToast('Cập nhật NV ' + ten + ' thành công!'); }
-    else { DB.nhanvien.unshift(rec); showToast('Thêm NV ' + ten + ' thành công!'); }
-    
-    syncDB(); // Lưu vào bộ nhớ
-    closeModal('modal-nv');
-    resetModalForm('modal-nv', 'nv-edit-idx');
-    renderNhanVien();
-    updateStats();
+    if (idx !== '') { DB.nhanvien[parseInt(idx)] = rec; showToast('Cập nhật NV ' + ten + ' thành công!'); } else { DB.nhanvien.unshift(rec); showToast('Thêm NV ' + ten + ' thành công!'); }
+    syncDB(); closeModal('modal-nv'); resetModalForm('modal-nv', 'nv-edit-idx'); renderNhanVien(); updateStats();
 }
 
-// ============================================================
-//  DELETE CONFIRM
-// ============================================================
 let pendingDel = null;
-function confirmDel(table, idx) {
-    pendingDel = { table, idx };
-    document.getElementById('confirm-overlay').classList.add('open');
-}
-function closeConfirm() {
-    document.getElementById('confirm-overlay').classList.remove('open');
-    pendingDel = null;
-}
+function confirmDel(table, idx) { pendingDel = { table, idx }; document.getElementById('confirm-overlay').classList.add('open'); }
+function closeConfirm() { document.getElementById('confirm-overlay').classList.remove('open'); pendingDel = null; }
 function executeDelete() {
     if (!pendingDel) return;
     DB[pendingDel.table].splice(pendingDel.idx, 1);
-    
-    syncDB(); // LƯU VÀO TRÌNH DUYỆT NGAY LẬP TỨC
-    
-    closeConfirm();
-    showToast('Đã xoá bản ghi thành công!', 'success');
-    if (pendingDel) {
-        const t = pendingDel.table;
-        if (t==='canho') renderCanHo();
-        if (t==='khachhang') renderKhachHang();
-        if (t==='hopdong') renderHopDong();
-        if (t==='chitiet') renderChiTiet();
-        if (t==='nhanvien') renderNhanVien();
-    }
-    updateStats();
-    pendingDel = null;
+    syncDB(); closeConfirm(); showToast('Đã xoá bản ghi thành công!', 'success');
+    const t = pendingDel.table;
+    if (t==='canho') renderCanHo(); if (t==='khachhang') renderKhachHang(); if (t==='hopdong') renderHopDong(); if (t==='chitiet') renderChiTiet(); if (t==='nhanvien') renderNhanVien();
+    updateStats(); pendingDel = null;
 }
 
-// ============================================================
-//  FILTER / SEARCH
-// ============================================================
 function filterTable(tblId) {
-    let tbl = document.getElementById(tblId);
-    if (!tbl) return;
+    let tbl = document.getElementById(tblId); if (!tbl) return;
     let rows = tbl.querySelectorAll('tbody tr');
-    
     if (tblId === 'tbl-canho') {
-        let ma = document.getElementById('f-ch-ma').value.trim().toLowerCase();
-        let loai = document.getElementById('f-ch-loai').value.trim().toLowerCase();
-        let tt = document.getElementById('f-ch-tt').value.trim().toLowerCase();
-        
-        rows.forEach(tr => {
-            let text = tr.innerText.toLowerCase();
-            if (text.includes(ma) && text.includes(loai) && text.includes(tt)) {
-                tr.style.display = '';
-            } else {
-                tr.style.display = 'none';
-            }
-        });
-    }
-    else if (tblId === 'tbl-khachhang') {
-        let txt = document.getElementById('f-kh-text').value.trim().toLowerCase();
-        let gt = document.getElementById('f-kh-gt').value.trim().toLowerCase();
-        rows.forEach(tr => {
-            let text = tr.innerText.toLowerCase();
-            tr.style.display = (text.includes(txt) && text.includes(gt)) ? '' : 'none';
-        });
-    }
-    else if (tblId === 'tbl-hopdong') {
-        let txt = document.getElementById('f-hd-text').value.trim().toLowerCase();
-        let tt = document.getElementById('f-hd-tt').value.trim().toLowerCase();
-        rows.forEach(tr => {
-            let text = tr.innerText.toLowerCase();
-            tr.style.display = (text.includes(txt) && text.includes(tt)) ? '' : 'none';
-        });
-    }
-    else if (tblId === 'tbl-chitiet') {
-        let txt = document.getElementById('f-ct-text').value.trim().toLowerCase();
-        let tt = document.getElementById('f-ct-tt').value.trim().toLowerCase();
-        rows.forEach(tr => {
-            let text = tr.innerText.toLowerCase();
-            tr.style.display = (text.includes(txt) && text.includes(tt)) ? '' : 'none';
-        });
-    }
-    else if (tblId === 'tbl-nhanvien') {
-        let txt = document.getElementById('f-nv-text').value.trim().toLowerCase();
-        let cv = document.getElementById('f-nv-cv').value.trim().toLowerCase();
-        rows.forEach(tr => {
-            let text = tr.innerText.toLowerCase();
-            tr.style.display = (text.includes(txt) && text.includes(cv)) ? '' : 'none';
-        });
+        let ma = document.getElementById('f-ch-ma').value.trim().toLowerCase(); let loai = document.getElementById('f-ch-loai').value.trim().toLowerCase(); let tt = document.getElementById('f-ch-tt').value.trim().toLowerCase();
+        rows.forEach(tr => { let text = tr.innerText.toLowerCase(); tr.style.display = (text.includes(ma) && text.includes(loai) && text.includes(tt)) ? '' : 'none'; });
+    } else if (tblId === 'tbl-khachhang') {
+        let txt = document.getElementById('f-kh-text').value.trim().toLowerCase(); let gt = document.getElementById('f-kh-gt').value.trim().toLowerCase();
+        rows.forEach(tr => { let text = tr.innerText.toLowerCase(); tr.style.display = (text.includes(txt) && text.includes(gt)) ? '' : 'none'; });
+    } else if (tblId === 'tbl-hopdong') {
+        let txt = document.getElementById('f-hd-text').value.trim().toLowerCase(); let tt = document.getElementById('f-hd-tt').value.trim().toLowerCase();
+        rows.forEach(tr => { let text = tr.innerText.toLowerCase(); tr.style.display = (text.includes(txt) && text.includes(tt)) ? '' : 'none'; });
+    } else if (tblId === 'tbl-chitiet') {
+        let txt = document.getElementById('f-ct-text').value.trim().toLowerCase(); let tt = document.getElementById('f-ct-tt').value.trim().toLowerCase();
+        rows.forEach(tr => { let text = tr.innerText.toLowerCase(); tr.style.display = (text.includes(txt) && text.includes(tt)) ? '' : 'none'; });
+    } else if (tblId === 'tbl-nhanvien') {
+        let txt = document.getElementById('f-nv-text').value.trim().toLowerCase(); let cv = document.getElementById('f-nv-cv').value.trim().toLowerCase();
+        rows.forEach(tr => { let text = tr.innerText.toLowerCase(); tr.style.display = (text.includes(txt) && text.includes(cv)) ? '' : 'none'; });
     }
 }
 
 function resetFilter(tblId) {
-    if (tblId === 'tbl-canho') {
-        document.getElementById('f-ch-ma').value = '';
-        document.getElementById('f-ch-loai').value = '';
-        document.getElementById('f-ch-tt').value = '';
-    } 
-    else if (tblId === 'tbl-khachhang') {
-        document.getElementById('f-kh-text').value = '';
-        document.getElementById('f-kh-gt').value = '';
-    } 
-    else if (tblId === 'tbl-hopdong') {
-        document.getElementById('f-hd-text').value = '';
-        document.getElementById('f-hd-tt').value = '';
-    } 
-    else if (tblId === 'tbl-chitiet') {
-        document.getElementById('f-ct-text').value = '';
-        document.getElementById('f-ct-tt').value = '';
-    } 
-    else if (tblId === 'tbl-nhanvien') {
-        document.getElementById('f-nv-text').value = '';
-        document.getElementById('f-nv-cv').value = '';
-    }
-    
-    // Hiển thị lại toàn bộ dữ liệu
-    let tbl = document.getElementById(tblId);
-    if (tbl) {
-        tbl.querySelectorAll('tbody tr').forEach(tr => tr.style.display = '');
-    }
+    if (tblId === 'tbl-canho') { document.getElementById('f-ch-ma').value = ''; document.getElementById('f-ch-loai').value = ''; document.getElementById('f-ch-tt').value = ''; } 
+    else if (tblId === 'tbl-khachhang') { document.getElementById('f-kh-text').value = ''; document.getElementById('f-kh-gt').value = ''; } 
+    else if (tblId === 'tbl-hopdong') { document.getElementById('f-hd-text').value = ''; document.getElementById('f-hd-tt').value = ''; } 
+    else if (tblId === 'tbl-chitiet') { document.getElementById('f-ct-text').value = ''; document.getElementById('f-ct-tt').value = ''; } 
+    else if (tblId === 'tbl-nhanvien') { document.getElementById('f-nv-text').value = ''; document.getElementById('f-nv-cv').value = ''; }
+    let tbl = document.getElementById(tblId); if (tbl) { tbl.querySelectorAll('tbody tr').forEach(tr => tr.style.display = ''); }
 }
 
 function globalSearch() {
     const kw = document.getElementById('global-search').value.trim().toLowerCase();
-    document.querySelectorAll('.page.active tbody tr').forEach(tr => {
-        tr.style.display = kw === '' || tr.innerText.toLowerCase().includes(kw) ? '' : 'none';
-    });
+    document.querySelectorAll('.page.active tbody tr').forEach(tr => { tr.style.display = kw === '' || tr.innerText.toLowerCase().includes(kw) ? '' : 'none'; });
 }
 
-// ============================================================
-//  MODAL RESET
-// ============================================================
 function resetModalForm(modalId, hiddenId) {
-    document.getElementById(hiddenId).value = '';
-    document.querySelectorAll(`#${modalId} input[type=text], #${modalId} input[type=number], #${modalId} input[type=date]`).forEach(el => el.value = '');
+    document.getElementById(hiddenId).value = ''; document.querySelectorAll(`#${modalId} input[type=text], #${modalId} input[type=number], #${modalId} input[type=date]`).forEach(el => el.value = '');
 }
 
-// ============================================================
-//  TOAST
-// ============================================================
 function showToast(msg, type='success') {
-    const t = document.getElementById('toast');
-    const icon = document.getElementById('toast-icon');
-    document.getElementById('toast-msg').textContent = msg;
-    t.className = 'toast ' + type;
-    icon.innerHTML = type === 'error' ? '<i class="fas fa-times-circle"></i>' : '<i class="fas fa-check-circle"></i>';
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 3000);
+    const t = document.getElementById('toast'); const icon = document.getElementById('toast-icon'); document.getElementById('toast-msg').textContent = msg;
+    t.className = 'toast ' + type; icon.innerHTML = type === 'error' ? '<i class="fas fa-times-circle"></i>' : '<i class="fas fa-check-circle"></i>';
+    t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-// ============================================================
-//  EXPORT CSV
-// ============================================================
 function exportCSV(table) {
     const maps = {
         canho: { data: DB.canho, keys: ['ma','loai','dt','dc','gia','tt'], headers: ['Mã CH','Loại','Diện tích','Địa chỉ','Giá','Trạng thái'] },
@@ -1837,53 +1509,19 @@ function exportCSV(table) {
         chitiet: { data: DB.chitiet, keys: ['mahd','mach','ngaybd','ngaykt','gia','tt'], headers: ['Mã HĐ','Mã CH','Ngày BD','Ngày KT','Giá thuê','Tình trạng'] },
         nhanvien: { data: DB.nhanvien, keys: ['ma','ten','gt','cv','sdt'], headers: ['Mã NV','Họ tên','Giới tính','Chức vụ','SĐT'] },
     };
-    
-    // detect current table from active page
-    if (!table) {
-        const active = document.querySelector('.page.active');
-        if (!active) return;
-        table = active.id.replace('page-','');
-        if (table === 'dashboard') { showToast('Chọn một trang cụ thể để xuất CSV', 'error'); return; }
-        if (table === 'baocao') { showToast('Báo cáo không hỗ trợ xuất CSV', 'error'); return; }
-    }
-    
-    const cfg = maps[table];
-    if (!cfg) return;
-    
+    if (!table) { const active = document.querySelector('.page.active'); if (!active) return; table = active.id.replace('page-',''); if (table === 'dashboard' || table === 'baocao') return; }
+    const cfg = maps[table]; if (!cfg) return;
     let csv = '\ufeff' + cfg.headers.join(',') + '\n';
-    cfg.data.forEach(r => {
-        csv += cfg.keys.map(k => `"${r[k] || ''}"`).join(',') + '\n';
-    });
-    
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `Vinhomes_${table}_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Xuất CSV thành công!');
+    cfg.data.forEach(r => { csv += cfg.keys.map(k => `"${r[k] || ''}"`).join(',') + '\n'; });
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'}); const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `Vinhomes_${table}_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url); showToast('Xuất CSV thành công!');
 }
 
-// ============================================================
-//  INIT
-// ============================================================
 document.addEventListener('DOMContentLoaded', () => {
     initAuth();
+    goPage('dashboard'); // <-- FIX: Tự động mở trang tổng quan thay vì để trống
     updateStats();
 });
-</script>
-<script>
-// Lấy dữ liệu từ file data.js, nếu đã có chỉnh sửa lưu ở trình duyệt thì ưu tiên lấy cái đó
-let DB = (() => {
-    const saved = localStorage.getItem('vinhomes_data');
-    if (saved) return JSON.parse(saved);
-    return JSON.parse(JSON.stringify(VINHOMES_DATA)); // Lấy từ data.js
-})();
-
-// Hàm đồng bộ dữ liệu vào bộ nhớ trình duyệt
-function syncDB() {
-    localStorage.setItem('vinhomes_data', JSON.stringify(DB));
-}
 </script>
 </body>
 </html>

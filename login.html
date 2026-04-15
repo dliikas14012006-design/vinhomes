@@ -325,10 +325,10 @@
         }
 
         if (user === 'admin' && pass === 'admin') {
-            try { sessionStorage.setItem('vhRole', 'admin'); sessionStorage.setItem('vhUser', 'Quản trị viên'); } catch(e){}
+            localStorage.setItem('vhRole', 'admin');
             window.location.href = 'index.html';
         } else if (user === 'nhanvien' && pass === 'nhanvien') {
-            try { sessionStorage.setItem('vhRole', 'nhanvien'); sessionStorage.setItem('vhUser', 'Nhân viên KD'); } catch(e){}
+            localStorage.setItem('vhRole', 'nhanvien');
             window.location.href = 'index.html';
         } else {
             errText.textContent = 'Sai tài khoản hoặc mật khẩu. Vui lòng thử lại!';
@@ -338,5 +338,3 @@
         }
     }
 </script>
-</body>
-</html>
