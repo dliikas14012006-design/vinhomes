@@ -113,7 +113,6 @@
         }
         .sidebar-divider { border:none; border-top:1px solid var(--border); margin: 8px 0; }
 
-        /* Role badge in sidebar bottom */
         .sidebar-bottom {
             margin-top: auto;
             padding: 16px 20px;
@@ -1217,7 +1216,7 @@
 <script src="data.js"></script>
 <script>
 // ============================================================
-// 1. KHỞI TẠO DỮ LIỆU ĐẦU TIÊN (CHỐNG LỖI ĐÓNG BĂNG TRANG)
+// 1. KHỞI TẠO DỮ LIỆU ĐẦU TIÊN
 // ============================================================
 let DB = { canho:[], khachhang:[], hopdong:[], chitiet:[], nhanvien:[] };
 try {
@@ -1519,7 +1518,7 @@ function exportCSV(table) {
 
 document.addEventListener('DOMContentLoaded', () => {
     initAuth();
-    goPage('dashboard'); // <-- FIX: Tự động mở trang tổng quan thay vì để trống
+    goPage('dashboard');
     updateStats();
 });
 </script>
